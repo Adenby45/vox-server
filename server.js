@@ -32,7 +32,7 @@ function broadcastChannelMembers(channelCode) {
   if (!channels[channelCode]) return;
   const members = channels[channelCode].members;
   members.forEach(socketId => {
-    io.to(socketId).emit('channel_members', 
+    io.to(socketId).emit('channel_members',
       members.map(id => users[id]?.username).filter(Boolean)
     );
   });
@@ -52,9 +52,11 @@ io.on('connection', (socket) => {
 
   socket.on('update_location', (data) => {
     users[socket.id] = {
+      ...users[socket.id],
       username: data.username,
       latitude: data.latitude,
       longitude: data.longitude,
+      distance: data.distance || 91,
       blockedUsers: users[socket.id]?.blockedUsers || [],
     };
 
@@ -62,15 +64,37 @@ io.on('connection', (socket) => {
     for (const [id, user] of Object.entries(users)) {
       if (id === socket.id) continue;
       if (users[socket.id].blockedUsers.includes(user.username)) continue;
+
       const dist = getDistance(
         data.latitude, data.longitude,
         user.latitude, user.longitude
       );
-      if (dist <= 91) {
+
+      const myRange = users[socket.id].distance || 91;
+      const theirRange = user.distance || 91;
+      const effectiveRange = Math.min(myRange, theirRange);
+
+      if (dist <= effectiveRange) {
         nearby.push({ username: user.username, distance: Math.round(dist) });
       }
     }
     socket.emit('nearby_users', nearby);
+  });
+
+  socket.on('set_distance', (data) => {
+    if (users[socket.id]) {
+      users[socket.id].distance = data.distance;
+      console.log(`${users[socket.id].username} set distance to ${data.distance}m`);
+    }
+  });
+
+  socket.on('join_public', (data) => {
+    users[socket.id] = {
+      ...users[socket.id],
+      username: data.username,
+      inPublicChat: true,
+    };
+    console.log(`${data.username} joined public chat`);
   });
 
   socket.on('create_channel', (data) => {
@@ -119,7 +143,6 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    const user = users[socket.id];
     for (const code in channels) {
       channels[code].members = channels[code].members.filter(id => id !== socket.id);
       broadcastChannelMembers(code);
