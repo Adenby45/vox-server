@@ -6,11 +6,14 @@ const { AccessToken } = require('livekit-server-sdk');
 
 const LIVEKIT_API_KEY = 'APIEhcDYMzGiVgY';
 const LIVEKIT_API_SECRET = 'Of5D5KkwsbBNpAklfm1tKAqjCn4ntZgHLW7ng9ILiS6';
-const LIVEKIT_URL = 'wss://vox-285kxqsh.livekit.cloud';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+app.get('/', (req, res) => {
+  res.send('Vox server is running!');
+});
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -39,12 +42,17 @@ function broadcastChannelMembers(channelCode) {
 }
 
 app.get('/token', async (req, res) => {
-  const { username, room } = req.query;
-  const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-    identity: username,
-  });
-  token.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true });
-  res.json({ token: await token.toJwt() });
+  try {
+    const { username, room } = req.query;
+    const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+      identity: username,
+    });
+    token.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true });
+    res.json({ token: await token.toJwt() });
+  } catch (e) {
+    console.error('Token error:', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 io.on('connection', (socket) => {
@@ -64,16 +72,13 @@ io.on('connection', (socket) => {
     for (const [id, user] of Object.entries(users)) {
       if (id === socket.id) continue;
       if (users[socket.id].blockedUsers.includes(user.username)) continue;
-
       const dist = getDistance(
         data.latitude, data.longitude,
         user.latitude, user.longitude
       );
-
       const myRange = users[socket.id].distance || 91;
       const theirRange = user.distance || 91;
       const effectiveRange = Math.min(myRange, theirRange);
-
       if (dist <= effectiveRange) {
         nearby.push({ username: user.username, distance: Math.round(dist) });
       }
@@ -84,7 +89,6 @@ io.on('connection', (socket) => {
   socket.on('set_distance', (data) => {
     if (users[socket.id]) {
       users[socket.id].distance = data.distance;
-      console.log(`${users[socket.id].username} set distance to ${data.distance}m`);
     }
   });
 
@@ -155,6 +159,7 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(process.env.PORT || 3000, () => {
-  console.log('Vox server running on port', process.env.PORT || 3000);
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => {
+  console.log('Vox server running on port', PORT);
 });
