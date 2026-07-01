@@ -84,6 +84,7 @@ io.on('connection', (socket) => {
       }
     }
     socket.emit('nearby_users', nearby);
+    socket.emit('in_range', nearby.map(u => u.username));
   });
 
   socket.on('set_distance', (data) => {
