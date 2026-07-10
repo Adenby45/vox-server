@@ -143,6 +143,14 @@ io.on('connection', (socket) => {
     console.log(`${data.username} blocked ${data.blocked}`);
   });
 
+  socket.on('unblock_user', (data) => {
+    if (!users[socket.id] || !users[socket.id].blockedUsers) return;
+    users[socket.id].blockedUsers = users[socket.id].blockedUsers.filter(
+      (u) => u !== data.unblocked
+    );
+    console.log(`${data.username} unblocked ${data.unblocked}`);
+  });
+
   socket.on('mute_user', (data) => {
     console.log(`${data.username} muted ${data.muted}`);
   });
